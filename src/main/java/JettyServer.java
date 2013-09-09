@@ -26,17 +26,18 @@ public class JettyServer extends HttpServlet {
         resp.setHeader("Content-Type", "application/json");
 
         boolean compact = Boolean.parseBoolean(req.getParameter("compact"));
-        int pageSize, page;
+        int pageSize = 0;
+        int page = 0;
 
         try {
             pageSize = Integer.parseInt(req.getParameter("page_size"));
         } catch (NumberFormatException nfe) {
-            pageSize = 10;
+            //
         }
         try {
             page = Integer.parseInt(req.getParameter("page"));
         } catch (NumberFormatException nfe) {
-            page = 1;
+            //
         }
 
         // This may mean we create an ArrayList that's larger than we need, but I'm OK with that
@@ -45,7 +46,7 @@ public class JettyServer extends HttpServlet {
         try {
             connection = this.connectionPool.getConnection();
             jsonResponse.results = MeasurementsAPI.getFeatures(
-                    connection, compact, page, pageSize
+                connection, compact, page, pageSize
             );
         } catch (SQLException e) {
             e.printStackTrace();
