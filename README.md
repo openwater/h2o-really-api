@@ -26,10 +26,15 @@ Simple:
 
     java -cp target/classes:"target/dependency/*" SimpleServer
 
+Browse
+------
+
+For example: http://127.0.0.1:5000/?compact=true&page_size=2&page=1
+
 TODO
 ----
 
 * API response meta (total, previous / next, etc)
-* database connection pooling
+* ~~database connection pooling~~
 * support for full measurement details
 * benchmarks

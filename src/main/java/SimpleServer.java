@@ -1,4 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jolbox.bonecp.BoneCP;
 import org.simpleframework.http.Query;
 import org.simpleframework.http.Request;
 import org.simpleframework.http.Response;
@@ -18,8 +19,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 public class SimpleServer implements Container {
-
-    private final java.sql.Connection connection;
 
     public static class Task implements Runnable {
 
@@ -62,21 +61,31 @@ public class SimpleServer implements Container {
                 body.close();
             } catch(Exception e) {
                 e.printStackTrace();
+            } finally {
+                try {
+                    connection.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
+    public final BoneCP connectionPool;
     private final Executor executor;
 
     public SimpleServer(int size) throws ClassNotFoundException, SQLException, URISyntaxException {
         this.executor = Executors.newFixedThreadPool(size);
-        this.connection = new Database().connection;
+        this.connectionPool = Database.getConnectionPool();
     }
 
     public void handle(Request request, Response response) {
-        Task task = new Task(connection, request, response);
-
-        executor.execute(task);
+        try {
+            Task task = new Task(connectionPool.getConnection(), request, response);
+            executor.execute(task);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] list) throws Exception {
@@ -84,7 +93,6 @@ public class SimpleServer implements Container {
         Server server = new ContainerServer(container);
         Connection connection = new SocketConnection(server);
         SocketAddress address = new InetSocketAddress(Integer.valueOf(System.getenv("PORT")));
-
         connection.connect(address);
     }
 }

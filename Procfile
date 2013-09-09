@@ -1,1 +1,1 @@
-web:    java -cp target/classes:target/dependency/* MeasurementsAPI
+web:    java -cp target/classes:target/dependency/* SimpleServer

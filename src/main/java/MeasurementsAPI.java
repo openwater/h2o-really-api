@@ -20,7 +20,7 @@ public class MeasurementsAPI {
     private static final String FULL_QUERY = "SELECT id, location, created_timestamp, reference_timestamp, location_reference FROM observations_measurement ORDER BY reference_timestamp DESC LIMIT ? OFFSET ?";
 
     public static class Properties {
-        public long id;
+        public final long id;
 
         public Properties(long id) {
             this.id = id;
@@ -28,9 +28,9 @@ public class MeasurementsAPI {
     }
 
     public static class FullProperties extends Properties {
-        public Date created_timestamp;
-        public Date reference_timestamp;
-        public String location_reference;
+        public final Date created_timestamp;
+        public final Date reference_timestamp;
+        public final String location_reference;
 
         public FullProperties(long id, Date created, Date date, String location) {
             super(id);
@@ -72,8 +72,8 @@ public class MeasurementsAPI {
         if (page <= 0) {
             page = 1;
         }
-        if (pageSize < 0) {
-            pageSize = 0;
+        if (pageSize <= 0) {
+            pageSize = 10;
         }
 
         int offset = (page - 1) * pageSize;

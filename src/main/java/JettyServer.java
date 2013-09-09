@@ -1,4 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jolbox.bonecp.BoneCP;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -17,14 +18,14 @@ import java.sql.SQLException;
  */
 public class JettyServer extends HttpServlet {
 
-    private final Connection connection;
+    public final BoneCP connectionPool;
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         resp.setHeader("Content-Type", "application/json");
 
-        boolean compact = false;
+        boolean compact = Boolean.parseBoolean(req.getParameter("compact"));
         int pageSize, page;
 
         try {
@@ -37,15 +38,26 @@ public class JettyServer extends HttpServlet {
         } catch (NumberFormatException nfe) {
             page = 1;
         }
-        try {
-            compact = Boolean.parseBoolean(req.getParameter("compact"));
-        } catch (ArrayIndexOutOfBoundsException e) {
-            //
-        }
 
         // This may mean we create an ArrayList that's larger than we need, but I'm OK with that
         MeasurementsAPI.JsonResponse jsonResponse = new MeasurementsAPI.JsonResponse();
-        jsonResponse.results = MeasurementsAPI.getFeatures(this.connection, compact, page, pageSize);
+        Connection connection = null;
+        try {
+            connection = this.connectionPool.getConnection();
+            jsonResponse.results = MeasurementsAPI.getFeatures(
+                    connection, compact, page, pageSize
+            );
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (connection != null) {
+                    connection.close();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
 
         try {
             ObjectMapper mapper = MeasurementsAPI.getMapper();
@@ -56,7 +68,7 @@ public class JettyServer extends HttpServlet {
     }
 
     public JettyServer() throws ClassNotFoundException, SQLException, URISyntaxException {
-        this.connection = new Database().connection;
+        this.connectionPool = Database.getConnectionPool();
     }
 
     public static void main(String[] args) throws Exception {
