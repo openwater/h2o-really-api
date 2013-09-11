@@ -66,6 +66,8 @@ However, for larger responses (e.g. `page_size=5000`), Python totally falls over
 For example, even at `page_size=5000` on my laptop both Java implementations can sustain ~18 req/s (with each returning ~6MB of JSON).
 Under those workloads, both Gunicorn and Bjoern dropped down to ~1.5 req/s with an error rate of ~10%.
 
+At the extreme, a full export of all ~130k records via the API (in compact form; 16MB or so) takes ~1s with Java, and nearly a full minute in Python.
+
 In all tests, both Java implementations showed similar numbers, with Jetty usually being marginally slower.
 
 TODO

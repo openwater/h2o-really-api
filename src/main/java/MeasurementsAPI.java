@@ -14,8 +14,8 @@ import java.util.concurrent.ExecutionException;
 public class MeasurementsAPI {
 
     private static final String COUNT_QUERY = "SELECT COUNT(*) FROM observations_measurement";
-    private static final String COMPACT_QUERY = "SELECT id, location FROM observations_measurement ORDER BY reference_timestamp DESC LIMIT ? OFFSET ?";
-    private static final String FULL_QUERY = "SELECT id, location, created_timestamp, reference_timestamp, location_reference FROM observations_measurement ORDER BY reference_timestamp DESC LIMIT ? OFFSET ?";
+    private static final String COMPACT_QUERY = "SELECT id, location FROM observations_measurement ORDER BY reference_timestamp DESC";
+    private static final String FULL_QUERY = "SELECT id, location, created_timestamp, reference_timestamp, location_reference FROM observations_measurement ORDER BY reference_timestamp DESC";
 
     public static class Properties {
         public final long id;
@@ -56,10 +56,19 @@ public class MeasurementsAPI {
     }
 
     public static class JsonResponse {
+        //
+    }
+
+    public static class PaginatedResults extends JsonResponse {
         public long count;
         public String next;
         public String previous;
         public List<Feature> results;
+    }
+
+    public static class FullResults extends JsonResponse {
+        public final String type = "FeatureCollection";
+        public List<Feature> features;
     }
 
     /**
@@ -121,10 +130,9 @@ public class MeasurementsAPI {
      * @return The response object to be serialized as JSON
      * @throws ExecutionException
      */
-    public static JsonResponse getResponse(Map<String, String> params)
+    public static <T extends JsonResponse> T getResponse(Map<String,
+            String> params)
             throws ExecutionException {
-        JsonResponse response = new JsonResponse();
-
         // If `page` and `page_size` weren't present in the request
         // parameters, we insert them for the the previous / next links
         if (!params.containsKey("page")) {
@@ -138,26 +146,35 @@ public class MeasurementsAPI {
         int page = Integer.parseInt(params.get("page"));
         int pageSize = Integer.parseInt(params.get("page_size"));
 
-        response.results = getFeatures(compact, page, pageSize);
-        response.count = getCount();
+        if (pageSize > 0) {
+            PaginatedResults response = new PaginatedResults();
+            response.results = getFeatures(compact, page, pageSize);
+            response.count = getCount();
 
-        int lastPage = (int) (response.count / pageSize) + 1;
-        StringBuffer link = new StringBuffer("?");
+            int lastPage = 1;
+            if (pageSize > 0) {
+                lastPage = (int) (response.count / pageSize) + 1;
+            }
+            StringBuffer link = new StringBuffer("?");
 
-        for (String key : params.keySet()) {
-            link.append(key).append("=").append(params.get(key)).append("&");
+            for (String key : params.keySet()) {
+                link.append(key).append("=").append(params.get(key)).append("&");
+            }
+            if (page != 1) {
+                response.previous = link.toString().replaceAll("&$", "")
+                        .replaceAll("page=[0-9]+", "page=" + (page - 1));
+            }
+
+            if (page != lastPage) {
+                response.next = link.toString().replaceAll("&$", "")
+                        .replaceAll("page=[0-9]+", "page=" + (page + 1));
+            }
+            return (T) response;
+        } else {
+            FullResults response = new FullResults();
+            response.features = getFeatures(compact, page, pageSize);
+            return (T) response;
         }
-        if (page != 1) {
-            response.previous = link.toString().replaceAll("&$", "")
-                    .replaceAll("page=[0-9]+", "page=" + (page - 1));
-        }
-
-        if (page != lastPage) {
-            response.next = link.toString().replaceAll("&$", "")
-                    .replaceAll("page=[0-9]+", "page=" + (page + 1));
-        }
-
-        return response;
     }
 
     private static List<Feature> getFeatures(boolean compact, int page, int pageSize) {
@@ -172,13 +189,23 @@ public class MeasurementsAPI {
 
         try {
             connection = DatabaseManager.getConnection();
+
+            String query;
             if (compact) {
-                stmt = connection.prepareStatement(COMPACT_QUERY);
+                query = COMPACT_QUERY;
             } else {
-                stmt = connection.prepareStatement(FULL_QUERY);
+                query = FULL_QUERY;
             }
-            stmt.setInt(1, pageSize);
-            stmt.setInt(2, offset);
+
+            if (pageSize > 0) {
+                query += " LIMIT ? OFFSET ?";
+                stmt = connection.prepareStatement(query);
+                stmt.setInt(1, pageSize);
+                stmt.setInt(2, offset);
+            } else {
+                stmt = connection.prepareStatement(query);
+            }
+
             rset = stmt.executeQuery();
             while (rset.next()) {
                 long id = rset.getLong("id");

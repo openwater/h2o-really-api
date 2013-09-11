@@ -41,17 +41,24 @@ public class SimpleServer implements Container {
                 for (Entry<String, String> entry : request.getQuery().entrySet()) {
                     map.put(entry.getKey(), entry.getValue());
                 }
-                MeasurementsAPI.JsonResponse jsonResponse = MeasurementsAPI.getResponse(map);
 
-                // This doesn't include the protocol, hostname,
-                // or port; only the path + query.
-                Path path = request.getPath();
-                String prefix = path.toString();
-                if (jsonResponse.previous != null) {
-                    jsonResponse.previous = prefix + jsonResponse.previous;
-                }
-                if (jsonResponse.next != null) {
-                    jsonResponse.next = prefix + jsonResponse.next;
+                MeasurementsAPI.JsonResponse jsonResponse = MeasurementsAPI.getResponse(map);
+                if (jsonResponse instanceof MeasurementsAPI.PaginatedResults) {
+                    MeasurementsAPI.PaginatedResults paginatedResults =
+                            (MeasurementsAPI.PaginatedResults) jsonResponse;
+
+                    // This doesn't include the protocol, hostname,
+                    // or port; only the path + query.
+                    Path path = request.getPath();
+                    String prefix = path.toString();
+                    if (paginatedResults.previous != null) {
+                        paginatedResults.previous = prefix + paginatedResults.previous;
+                    }
+                    if (paginatedResults.next != null) {
+                        paginatedResults.next = prefix + paginatedResults.next;
+                    }
+
+                    jsonResponse = paginatedResults;
                 }
 
                 try {

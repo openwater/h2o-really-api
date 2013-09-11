@@ -29,11 +29,18 @@ public class JettyServer extends HttpServlet {
                 params.put(key, req.getParameter(key));
             }
             jsonResponse = MeasurementsAPI.getResponse(params);
-            if (jsonResponse.previous != null) {
-                jsonResponse.previous = req.getRequestURL() + jsonResponse.previous;
-            }
-            if (jsonResponse.next != null) {
-                jsonResponse.next = req.getRequestURL() + jsonResponse.next;
+            if (jsonResponse instanceof MeasurementsAPI.PaginatedResults) {
+                MeasurementsAPI.PaginatedResults paginatedResults =
+                        (MeasurementsAPI.PaginatedResults) jsonResponse;
+
+                if (paginatedResults.previous != null) {
+                    paginatedResults.previous = req.getRequestURL() + paginatedResults.previous;
+                }
+                if (paginatedResults.next != null) {
+                    paginatedResults.next = req.getRequestURL() + paginatedResults.next;
+                }
+
+                jsonResponse = paginatedResults;
             }
         } catch (ExecutionException e) {
             e.printStackTrace();
