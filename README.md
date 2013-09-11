@@ -52,13 +52,13 @@ Java:
 The workload was 5 threads with a 1 second ramp-up and a loop count of 200 (giving an even 1000 requests for each server).
 See `basic_test_plan.jmx`. I had the Servers configured as follows:
 
-* Django dev server on port `80` (baseline)
+* Django dev server on port `8000` (baseline)
 * Bjoern on `7777`
 * Gunicorn on `8888`
 * Simple on `5000`
 * Jetty on `5050`
 
-each run in isolation.
+each tested in isolation.
 
 For small responses, there isn't a huge difference (~30 req/s for Python vs ~80 req/s for Java).
 However, for larger responses (e.g. `page_size=5000`), Python totally falls over and starts raising errors, but Java remains steady.
