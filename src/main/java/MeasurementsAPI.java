@@ -2,20 +2,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.postgis.PGgeometry;
 import org.postgis.Point;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.net.URISyntaxException;
+import java.sql.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.Date;
-import java.util.List;
-import java.util.TimeZone;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 
-@SuppressWarnings("SpellCheckingInspection")
 public class MeasurementsAPI {
 
+    private static final String COUNT_QUERY = "SELECT COUNT(*) FROM observations_measurement";
     private static final String COMPACT_QUERY = "SELECT id, location FROM observations_measurement ORDER BY reference_timestamp DESC LIMIT ? OFFSET ?";
     private static final String FULL_QUERY = "SELECT id, location, created_timestamp, reference_timestamp, location_reference FROM observations_measurement ORDER BY reference_timestamp DESC LIMIT ? OFFSET ?";
 
@@ -42,7 +40,7 @@ public class MeasurementsAPI {
 
     public static class Geometry {
         public final String type = "Point";
-        public double[] coordinates;
+        public final double[] coordinates;
 
         public Geometry(Point point) {
             this.coordinates = new double[2];
@@ -64,21 +62,116 @@ public class MeasurementsAPI {
         public List<Feature> results;
     }
 
-    protected static List<Feature> getFeatures(Connection connection, boolean compact, int page, int pageSize) {
+    /**
+     * Helper for getting the total number of rows either from the db or from the cache.
+     *
+     * @return The total number of measurements.
+     * @throws ExecutionException
+     */
+    private static Long getCount() throws ExecutionException {
+        CacheManager cm = CacheManager.getInstance();
+        return (Long) cm.cache.get("total-measurements", new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                Connection connection = null;
+                Long dbCount = Long.valueOf(0);
+                ResultSet rset = null;
+                Statement stmt = null;
+                try {
+                    connection = DatabaseManager.getConnection();
+                    stmt = connection.createStatement();
+                    rset = stmt.executeQuery(COUNT_QUERY);
+                    rset.next();
+                    dbCount = rset.getLong(1);
+                } catch(SQLException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        if (rset != null) {
+                            rset.close();
+                        }
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+                    if (stmt != null) {
+                        try {
+                            stmt.close();
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    if (connection != null) {
+                        try {
+                            connection.close();
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                return dbCount;
+            }
+        });
+    }
+
+    /**
+     * Given the request parameters as a `Map`, we build the response,
+     * including the appropriate measurements + metadata.
+     *
+     * @param params Parsed from the query string
+     * @return The response object to be serialized as JSON
+     * @throws ExecutionException
+     */
+    public static JsonResponse getResponse(Map<String, String> params)
+            throws ExecutionException {
+        JsonResponse response = new JsonResponse();
+
+        // If `page` and `page_size` weren't present in the request
+        // parameters, we insert them for the the previous / next links
+        if (!params.containsKey("page")) {
+            params.put("page", String.valueOf(1));
+        }
+        if (!params.containsKey("page_size")) {
+            params.put("page_size", String.valueOf(10));
+        }
+
+        boolean compact = Boolean.parseBoolean(params.get("compact"));
+        int page = Integer.parseInt(params.get("page"));
+        int pageSize = Integer.parseInt(params.get("page_size"));
+
+        response.results = getFeatures(compact, page, pageSize);
+        response.count = getCount();
+
+        int lastPage = (int) (response.count / pageSize) + 1;
+        StringBuffer link = new StringBuffer("?");
+
+        for (String key : params.keySet()) {
+            link.append(key).append("=").append(params.get(key)).append("&");
+        }
+        if (page != 1) {
+            response.previous = link.toString().replaceAll("&$", "")
+                    .replaceAll("page=[0-9]+", "page=" + (page - 1));
+        }
+
+        if (page != lastPage) {
+            response.next = link.toString().replaceAll("&$", "")
+                    .replaceAll("page=[0-9]+", "page=" + (page + 1));
+        }
+
+        return response;
+    }
+
+    private static List<Feature> getFeatures(boolean compact, int page, int pageSize) {
+        // This may mean we create an ArrayList that's larger than we need,
+        // but I'm OK with that
         ArrayList<Feature> features = new ArrayList<Feature>(pageSize);
         PreparedStatement stmt = null;
         ResultSet rset = null;
-
-        if (page <= 0) {
-            page = 1;
-        }
-        if (pageSize <= 0) {
-            pageSize = 10;
-        }
+        Connection connection = null;
 
         int offset = (page - 1) * pageSize;
 
         try {
+            connection = DatabaseManager.getConnection();
             if (compact) {
                 stmt = connection.prepareStatement(COMPACT_QUERY);
             } else {
@@ -96,19 +189,20 @@ public class MeasurementsAPI {
                 if (compact) {
                     feature.properties = new Properties(id);
                 } else {
-                    Date created_timestamp = rset.getTimestamp("created_timestamp");
-                    Date reference_timestamp = rset.getTimestamp("reference_timestamp");
-                    String location_reference = rset.getString("location_reference");
                     feature.properties = new FullProperties(
-                            id, created_timestamp, reference_timestamp, location_reference
+                            id,
+                            rset.getTimestamp("created_timestamp"),
+                            rset.getTimestamp("reference_timestamp"),
+                            rset.getString("location_reference")
                     );
                 }
                 feature.geometry = new Geometry(point);
-
                 features.add(feature);
             }
         } catch (SQLException sqle) {
             sqle.printStackTrace();
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
         } finally {
             if (rset != null) {
                 try {
@@ -120,6 +214,13 @@ public class MeasurementsAPI {
             if (stmt != null) {
                 try {
                     stmt.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (connection != null) {
+                try {
+                    connection.close();
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }

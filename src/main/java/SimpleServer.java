@@ -1,6 +1,5 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jolbox.bonecp.BoneCP;
-import org.simpleframework.http.Query;
+import org.simpleframework.http.Path;
 import org.simpleframework.http.Request;
 import org.simpleframework.http.Response;
 import org.simpleframework.http.core.Container;
@@ -13,21 +12,24 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.net.URISyntaxException;
-import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+import static java.util.Map.Entry;
+
+/**
+ * Basic server using Simple Framework.
+ */
 public class SimpleServer implements Container {
 
     public static class Task implements Runnable {
 
-        private final java.sql.Connection connection;
         private final Response response;
         private final Request request;
 
-        public Task(java.sql.Connection connection, Request request, Response response) {
-            this.connection = connection;
+        public Task(Request request, Response response) {
             this.response = response;
             this.request = request;
         }
@@ -35,15 +37,22 @@ public class SimpleServer implements Container {
         public void run() {
             try {
                 PrintStream body = response.getPrintStream();
-                Query query = request.getQuery();
+                Map<String, String> map = new HashMap<String, String>();
+                for (Entry<String, String> entry : request.getQuery().entrySet()) {
+                    map.put(entry.getKey(), entry.getValue());
+                }
+                MeasurementsAPI.JsonResponse jsonResponse = MeasurementsAPI.getResponse(map);
 
-                boolean compact = query.getBoolean("compact");
-                int page = query.getInteger("page");
-                int pageSize = query.getInteger("page_size");
-
-                // This may mean we create an ArrayList that's larger than we need, but I'm OK with that
-                MeasurementsAPI.JsonResponse jsonResponse = new MeasurementsAPI.JsonResponse();
-                jsonResponse.results = MeasurementsAPI.getFeatures(this.connection, compact, page, pageSize);
+                // This doesn't include the protocol, hostname,
+                // or port; only the path + query.
+                Path path = request.getPath();
+                String prefix = path.toString();
+                if (jsonResponse.previous != null) {
+                    jsonResponse.previous = prefix + jsonResponse.previous;
+                }
+                if (jsonResponse.next != null) {
+                    jsonResponse.next = prefix + jsonResponse.next;
+                }
 
                 try {
                     ObjectMapper mapper = MeasurementsAPI.getMapper();
@@ -61,31 +70,19 @@ public class SimpleServer implements Container {
                 body.close();
             } catch(Exception e) {
                 e.printStackTrace();
-            } finally {
-                try {
-                    connection.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
             }
         }
     }
 
-    public final BoneCP connectionPool;
     private final Executor executor;
 
-    public SimpleServer(int size) throws ClassNotFoundException, SQLException, URISyntaxException {
+    public SimpleServer(int size) {
         this.executor = Executors.newFixedThreadPool(size);
-        this.connectionPool = Database.getConnectionPool();
     }
 
     public void handle(Request request, Response response) {
-        try {
-            Task task = new Task(connectionPool.getConnection(), request, response);
-            executor.execute(task);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        Task task = new Task(request, response);
+        executor.execute(task);
     }
 
     public static void main(String[] list) throws Exception {

@@ -29,7 +29,9 @@ Simple:
 Browse
 ------
 
-For example: http://127.0.0.1:5000/?compact=true&page_size=2&page=1
+For example:
+
+    http://127.0.0.1:5000/?compact=true&page_size=2&page=1
 
 Fast?
 -----
@@ -53,7 +55,8 @@ See `basic_test_plan.jmx`. I had the Servers configured as follows:
 * Django dev server on port `80` (baseline)
 * Bjoern on `7777`
 * Gunicorn on `8888`
-* Java on `5000`
+* Simple on `5000`
+* Jetty on `5050`
 
 each run in isolation.
 
@@ -68,7 +71,7 @@ In all tests, both Java implementations showed similar numbers, with Jetty usual
 TODO
 ----
 
-* API response meta (total, previous / next, etc)
+* ~~API response meta (total, previous / next, etc)~~
 * ~~database connection pooling~~
 * support for full measurement details
 * ~~benchmarks~~
