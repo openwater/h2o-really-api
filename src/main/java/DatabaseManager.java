@@ -57,7 +57,7 @@ class DatabaseManager {
         //
     }
 
-    public static DatabaseManager getInstance() throws SQLException, URISyntaxException {
+    public static synchronized DatabaseManager getInstance() throws SQLException, URISyntaxException {
         if (instance == null) {
             instance = new DatabaseManager();
 

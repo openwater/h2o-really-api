@@ -14,7 +14,7 @@ public class CacheManager {
         //
     }
 
-    public static CacheManager getInstance() {
+    public static synchronized CacheManager getInstance() {
         if (instance == null) {
             instance = new CacheManager();
             instance.cache = CacheBuilder.newBuilder()

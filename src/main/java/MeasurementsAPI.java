@@ -94,6 +94,8 @@ public class MeasurementsAPI {
                     dbCount = rset.getLong(1);
                 } catch(SQLException e) {
                     e.printStackTrace();
+                } catch (NullPointerException npe) {
+                    npe.printStackTrace();
                 } finally {
                     try {
                         if (rset != null) {
