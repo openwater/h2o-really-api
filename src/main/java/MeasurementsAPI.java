@@ -83,7 +83,7 @@ public class MeasurementsAPI {
             @Override
             public Long call() throws Exception {
                 Connection connection = null;
-                Long dbCount = Long.valueOf(0);
+                Long dbCount = (long) 0;
                 ResultSet rset = null;
                 Statement stmt = null;
                 try {
@@ -157,7 +157,7 @@ public class MeasurementsAPI {
             if (pageSize > 0) {
                 lastPage = (int) (response.count / pageSize) + 1;
             }
-            StringBuffer link = new StringBuffer("?");
+            StringBuilder link = new StringBuilder("?");
 
             for (String key : params.keySet()) {
                 link.append(key).append("=").append(params.get(key)).append("&");
