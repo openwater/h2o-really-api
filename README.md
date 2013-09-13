@@ -55,8 +55,8 @@ Java:
 * Simple Framework 5.1.5
 * Spark 1.1 (internally using Jetty 9.0.2.v20130417)
 
-The workload was 5 threads with a 1 second ramp-up and a loop count of 200 (giving an even 1000 requests for each server).
-See `basic_test_plan.jmx`. I had the Servers configured as follows:
+The workload was 5 threads with a 1 second ramp-up and a loop count of 200 (giving an even 1000 requests for each server -- see `benchmark/basic_test_plan.jmx` for full details).
+I had the Servers configured as follows (scripts for running Bjoern and Gunicorn are provided in `benchmark`):
 
 * Django dev server on port `8000` (baseline)
 * Bjoern (8 workers) on `7777`
